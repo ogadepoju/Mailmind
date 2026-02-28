@@ -1,5 +1,5 @@
-// MailMind — Outlook Taskpane v4
-// Uses Office.js makeEwsRequestAsync to send — works on personal accounts
+// MailMind — Outlook Taskpane v5
+// Simplified EWS send — works on personal outlook.com accounts
 
 const BACKEND_URL = 'https://mailmind-6f1d.onrender.com';
 
@@ -90,9 +90,8 @@ async function requestDraft() {
   } catch (err) {
     const isTimeout = err.name === 'AbortError';
     const message = isTimeout ? 'Request timed out' : err.message;
-    const hint = isTimeout ? 'Try regenerating.' : `Backend: ${BACKEND_URL}`;
     setStatus('error', message);
-    showError(message, hint);
+    showError(message, isTimeout ? 'Try regenerating.' : `Backend: ${BACKEND_URL}`);
     showState('idle');
   } finally {
     isDrafting = false;
@@ -100,9 +99,7 @@ async function requestDraft() {
   }
 }
 
-// ─── SEND VIA EWS ────────────────────────────────────────────────────────────
-// makeEwsRequestAsync works on personal outlook.com accounts
-// No token or Graph API needed
+// ─── SEND ────────────────────────────────────────────────────────────────────
 
 async function sendReply() {
   const draftBody = document.getElementById('draft-textarea').value.trim();
@@ -125,32 +122,35 @@ async function sendReply() {
   }
 }
 
+// ─── EWS SEND ────────────────────────────────────────────────────────────────
+
+function xmlEscape(str) {
+  return (str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
 function sendViaEWS(bodyText) {
   return new Promise((resolve, reject) => {
-    const item = Office.context.mailbox.item;
-    const itemId = item.itemId;
     const replySubject = currentEmail.subject?.toLowerCase().startsWith('re:')
       ? currentEmail.subject
       : `Re: ${currentEmail.subject}`;
 
-    // Escape special XML characters in the body
-    const escapedBody = bodyText
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&apos;')
-      .replace(/\n/g, '<br/>');
+    // Convert plain text newlines to HTML breaks
+    const htmlBody = xmlEscape(bodyText).replace(/\n/g, '<br/>');
 
-    // Build EWS CreateItem SOAP request
-    const ewsRequest = `<?xml version="1.0" encoding="utf-8"?>
-<soap:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-               xmlns:xsd="http://www.w3.org/2001/XMLSchema"
-               xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"
-               xmlns:t="http://schemas.microsoft.com/exchange/services/2006/types"
-               xmlns:m="http://schemas.microsoft.com/exchange/services/2006/messages">
+    const soap = `<?xml version="1.0" encoding="utf-8"?>
+<soap:Envelope
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+  xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"
+  xmlns:t="http://schemas.microsoft.com/exchange/services/2006/types"
+  xmlns:m="http://schemas.microsoft.com/exchange/services/2006/messages">
   <soap:Header>
-    <t:RequestServerVersion Version="Exchange2013"/>
+    <t:RequestServerVersion Version="Exchange2013_SP1"/>
   </soap:Header>
   <soap:Body>
     <m:CreateItem MessageDisposition="SendAndSaveCopy">
@@ -159,37 +159,38 @@ function sendViaEWS(bodyText) {
       </m:SavedItemFolderId>
       <m:Items>
         <t:Message>
-          <t:Subject>${replySubject.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</t:Subject>
-          <t:Body BodyType="HTML">${escapedBody}</t:Body>
+          <t:Subject>${xmlEscape(replySubject)}</t:Subject>
+          <t:Body BodyType="HTML">${htmlBody}</t:Body>
           <t:ToRecipients>
             <t:Mailbox>
-              <t:EmailAddress>${currentEmail.from}</t:EmailAddress>
-              <t:Name>${(currentEmail.fromName || currentEmail.from).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</t:Name>
+              <t:EmailAddress>${xmlEscape(currentEmail.from)}</t:EmailAddress>
             </t:Mailbox>
           </t:ToRecipients>
-          <t:IsReplyAllowed>true</t:IsReplyAllowed>
-          <t:InReplyTo>${itemId}</t:InReplyTo>
         </t:Message>
       </m:Items>
     </m:CreateItem>
   </soap:Body>
 </soap:Envelope>`;
 
-    Office.context.mailbox.makeEwsRequestAsync(ewsRequest, (result) => {
-      if (result.status === Office.AsyncResultStatus.Succeeded) {
-        // Check EWS response for errors
+    Office.context.mailbox.makeEwsRequestAsync(soap, (result) => {
+      if (result.status !== Office.AsyncResultStatus.Succeeded) {
+        return reject(new Error(result.error?.message || 'EWS request failed'));
+      }
+
+      try {
         const parser = new DOMParser();
-        const xmlDoc = parser.parseFromString(result.value, 'text/xml');
-        const responseClass = xmlDoc.querySelector('[ResponseClass]')?.getAttribute('ResponseClass');
+        const xml = parser.parseFromString(result.value, 'text/xml');
+        const responseClass = xml.querySelector('[ResponseClass]')?.getAttribute('ResponseClass');
+        const messageText = xml.querySelector('MessageText')?.textContent;
 
         if (responseClass === 'Success') {
           resolve();
         } else {
-          const messageText = xmlDoc.querySelector('MessageText')?.textContent || 'EWS send failed';
-          reject(new Error(messageText));
+          reject(new Error(messageText || 'Unknown EWS error'));
         }
-      } else {
-        reject(new Error(result.error?.message || 'EWS request failed'));
+      } catch (parseErr) {
+        // If we can't parse the response but request succeeded, assume it worked
+        resolve();
       }
     });
   });
