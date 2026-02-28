@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<OfficeApp
+  xmlns="http://schemas.microsoft.com/office/appforoffice/1.1"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0"
+  xmlns:mailappor="http://schemas.microsoft.com/office/mailappversionoverrides/1.0"
+  xsi:type="MessageReadApp">
+
+  <Id>mailmind-outlook-addin-v2</Id>
+  <Version>2.0.0.0</Version>
+  <ProviderName>MailMind</ProviderName>
+  <DefaultLocale>en-US</DefaultLocale>
+  <DisplayName DefaultValue="MailMind — AI Reply Assistant"/>
+  <Description DefaultValue="Draft email replies privately using AI. Review and send with one click."/>
+  <IconUrl DefaultValue="https://mailmind-6f1d.onrender.com/icons/icon64.png"/>
+  <HighResolutionIconUrl DefaultValue="https://mailmind-6f1d.onrender.com/icons/icon128.png"/>
+  <SupportUrl DefaultValue="https://mailmind-6f1d.onrender.com"/>
+
+  <AppDomains>
+    <AppDomain>https://mailmind-6f1d.onrender.com</AppDomain>
+    <AppDomain>localhost</AppDomain>
+  </AppDomains>
+
+  <Hosts>
+    <Host Name="Mailbox"/>
+  </Hosts>
+
+  <Requirements>
+    <Sets>
+      <Set Name="Mailbox" MinVersion="1.3"/>
+    </Sets>
+  </Requirements>
+
+  <FormSettings>
+    <Form xsi:type="ItemRead">
+      <DesktopSettings>
+        <SourceLocation DefaultValue="https://mailmind-6f1d.onrender.com/outlook/taskpane.html"/>
+        <RequestedHeight>550</RequestedHeight>
+      </DesktopSettings>
+    </Form>
+  </FormSettings>
+
+  <Permissions>ReadWriteItem</Permissions>
+
+  <Rule xsi:type="RuleCollection" Mode="Or">
+    <Rule xsi:type="ItemIs" ItemType="Message" FormType="Read"/>
+  </Rule>
+
+</OfficeApp>
