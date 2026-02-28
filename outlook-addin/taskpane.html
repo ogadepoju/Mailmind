@@ -302,7 +302,7 @@
   <div class="actions">
     <div class="actions-row">
       <button class="btn btn-regen" id="btn-regen">↺ Regenerate</button>
-      <button class="btn btn-send" id="btn-send">✓ Send Reply</button>
+      <button class="btn btn-send" id="btn-send">✓ Open Reply</button>
     </div>
     <div class="privacy-note">✦ Drafted with Claude AI · MailMind</div>
   </div>
@@ -318,6 +318,16 @@
     <div style="color:var(--red);font-size:11px;font-weight:600;" id="error-title">Error</div>
     <div class="error-detail" id="error-detail"></div>
     <button class="btn btn-regen" id="btn-retry" style="margin-top:10px;flex:0;width:100%">↺ Retry</button>
+  </div>
+</div>
+
+<!-- Sending view -->
+<div id="view-sending" class="hidden" style="flex:1;">
+  <div class="sent-view">
+    <div class="sent-icon">📨</div>
+    <div class="sent-title">Reply window open</div>
+    <div class="sent-sub">Your draft is pre-filled and ready.<br>Just click <strong style="color:#e2e8f0">Send</strong> in the compose window to send.</div>
+    <button class="btn btn-regen" id="btn-sending-back" style="margin-top:16px;width:100%">← Edit draft</button>
   </div>
 </div>
 
