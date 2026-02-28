@@ -1,26 +1,35 @@
 """
 MailMind Hosted Backend — Render + Anthropic Claude
-Serves both Gmail extension and Outlook Add-in
+No RAG dependency — Claude handles drafting directly
 """
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-from typing import Optional
-import logging
+from pydantic_settings import BaseSettings
 import httpx
+import logging
 import os
-
-from .config import settings
-from .rag import RAGEngine
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("mailmind")
 
+# ─── SETTINGS ────────────────────────────────────────────────────────────────
+
+class Settings(BaseSettings):
+    ANTHROPIC_API_KEY: str = ""
+    ANTHROPIC_MODEL: str = "claude-haiku-4-5-20251001"
+
+    class Config:
+        env_file = ".env"
+
+settings = Settings()
+
+# ─── APP ─────────────────────────────────────────────────────────────────────
+
 app = FastAPI(title="MailMind API", version="2.0.0")
 
-# CORS — allow Outlook, Gmail, and any browser-based add-in
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -28,7 +37,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-rag_engine = RAGEngine()
+# Serve Outlook add-in files if folder exists
+if os.path.exists("outlook-addin"):
+    app.mount("/outlook", StaticFiles(directory="outlook-addin"), name="outlook")
 
 # ─── MODELS ──────────────────────────────────────────────────────────────────
 
@@ -49,10 +60,6 @@ class EmailData(BaseModel):
 class DraftResponse(BaseModel):
     draft: str
     engine: str = "claude"
-    rag_used: bool = False
-
-class IngestRequest(BaseModel):
-    emails: list[dict]
 
 # ─── ROUTES ──────────────────────────────────────────────────────────────────
 
@@ -67,7 +74,7 @@ async def health():
         "status": "ok",
         "engine": "claude",
         "model": settings.ANTHROPIC_MODEL,
-        "rag_docs": rag_engine.count()
+        "api_key_set": bool(settings.ANTHROPIC_API_KEY)
     }
 
 
@@ -75,52 +82,26 @@ async def health():
 async def draft_reply(email: EmailData):
     logger.info(f"Drafting reply for: {email.subject[:60]}")
 
-    if not email.body and not email.snippet:
+    body = email.body or email.snippet or ""
+    if not body.strip():
         raise HTTPException(status_code=400, detail="Email body is empty")
 
-    # RAG context
-    rag_context = rag_engine.retrieve(
-        query=f"{email.subject} {(email.body or email.snippet)[:200]}",
-        n_results=settings.MAX_RAG_RESULTS
-    )
-    style = rag_engine.get_style_profile()
+    if not settings.ANTHROPIC_API_KEY:
+        raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY not set in environment")
 
-    # Build prompt
-    prompt = build_prompt(email, rag_context, style)
+    prompt = build_prompt(email)
 
-    # Generate with Claude
     try:
-        draft = await generate_with_claude(prompt)
-        return DraftResponse(
-            draft=draft.strip(),
-            engine="claude",
-            rag_used=len(rag_context) > 0
-        )
+        draft = await call_claude(prompt)
+        return DraftResponse(draft=draft.strip(), engine="claude")
     except Exception as e:
-        logger.error(f"Claude generation failed: {e}")
-        raise HTTPException(status_code=500, detail=f"AI generation failed: {str(e)}")
+        logger.error(f"Claude error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/ingest")
-async def ingest_emails(request: IngestRequest):
-    logger.info(f"Ingesting {len(request.emails)} emails")
-    count = rag_engine.ingest(request.emails)
-    profile = rag_engine.build_style_profile(request.emails)
-    return {
-        "ingested": count,
-        "style_profile": profile,
-        "message": f"Successfully indexed {count} emails"
-    }
+# ─── CLAUDE ──────────────────────────────────────────────────────────────────
 
-
-@app.get("/style-profile")
-async def get_style_profile():
-    return rag_engine.get_style_profile()
-
-
-# ─── CLAUDE API ──────────────────────────────────────────────────────────────
-
-async def generate_with_claude(prompt: str) -> str:
+async def call_claude(prompt: str) -> str:
     async with httpx.AsyncClient(timeout=30.0) as client:
         res = await client.post(
             "https://api.anthropic.com/v1/messages",
@@ -131,49 +112,35 @@ async def generate_with_claude(prompt: str) -> str:
             },
             json={
                 "model": settings.ANTHROPIC_MODEL,
-                "max_tokens": 1024,
-                "system": "You are a personal email assistant. Write concise, natural email replies that match the user's writing style. Never add a subject line. Never use overly formal language unless the examples show it. Get straight to the point.",
+                "max_tokens": 512,
+                "system": (
+                    "You are a personal email assistant. "
+                    "Write concise, natural email replies on behalf of the user. "
+                    "Never add a subject line. Get straight to the point. "
+                    "Match the tone of the original email — casual if casual, formal if formal."
+                ),
                 "messages": [{"role": "user", "content": prompt}]
             }
         )
         res.raise_for_status()
-        data = res.json()
-        return data["content"][0]["text"]
+        return res.json()["content"][0]["text"]
 
 
-# ─── PROMPT BUILDER ──────────────────────────────────────────────────────────
+# ─── PROMPT ──────────────────────────────────────────────────────────────────
 
-def build_prompt(email: EmailData, rag_context: list, style: dict) -> str:
+def build_prompt(email: EmailData) -> str:
     sender = email.fromName or email.from_ or "the sender"
     subject = email.subject or "this email"
-    body = (email.body or email.snippet or "")[:1200]
-
-    examples_section = ""
-    if rag_context:
-        examples = "\n---\n".join([
-            f"Email received: {c.get('received', '')[:200]}\nMy reply: {c.get('reply', '')[:300]}"
-            for c in rag_context[:3]
-        ])
-        examples_section = f"\nExamples of how I reply to similar emails:\n{examples}\n"
-
-    style_section = ""
-    if style:
-        style_section = f"""
-My writing style:
-- Tone: {style.get('tone', 'professional')}
-- Length: {style.get('avg_length', 'concise')}
-- Sign-off: {style.get('sign_off', 'Best regards')}
-"""
+    body = (email.body or email.snippet or "")[:1500]
 
     return f"""Draft a reply to this email on my behalf.
-{style_section}
-{examples_section}
-EMAIL TO REPLY TO:
+
+EMAIL:
 From: {sender}
 Subject: {subject}
 
 {body}
 
 ---
-Write only the reply body. No subject line. Match my style from the examples above.
+Write only the reply body. No subject line. Be concise and natural.
 Reply:"""
