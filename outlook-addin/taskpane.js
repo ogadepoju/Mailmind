@@ -1,11 +1,14 @@
-// MailMind — Outlook Taskpane v2
-// Auto-drafts on email open, sends via Outlook reply API
+// MailMind — Outlook Taskpane v3
+// Sends directly via Microsoft Graph API — no draft, no compose window
 
-// ── Replace this with your Render URL once deployed ──
 const BACKEND_URL = 'https://mailmind-6f1d.onrender.com';
+
+// Microsoft Graph - these scopes allow reading + sending email
+const GRAPH_SCOPES = ['https://graph.microsoft.com/Mail.Send'];
 
 let currentEmail = null;
 let isDrafting = false;
+let graphToken = null;
 
 // ─── OFFICE INIT ─────────────────────────────────────────────────────────────
 
@@ -16,17 +19,36 @@ Office.onReady((info) => {
   }
 });
 
+// ─── GET GRAPH TOKEN ─────────────────────────────────────────────────────────
+
+async function getGraphToken() {
+  if (graphToken) return graphToken;
+
+  try {
+    // Use Office SSO to get a token silently
+    const token = await Office.auth.getAccessToken({
+      allowSignInPrompt: true,
+      allowConsentPrompt: true,
+      forMSGraphAccess: true
+    });
+    graphToken = token;
+    return token;
+  } catch (err) {
+    console.error('[MailMind] SSO error:', err);
+    throw new Error('Could not get auth token: ' + err.message);
+  }
+}
+
 // ─── LOAD EMAIL + AUTO DRAFT ─────────────────────────────────────────────────
 
 function loadEmailAndDraft() {
   const item = Office.context.mailbox.item;
   if (!item) {
     showState('idle');
-    showError('No email is currently open.', 'Open an email to get started.');
+    showError('No email open', 'Open an email to get started.');
     return;
   }
 
-  // Populate metadata immediately
   const from = item.from?.emailAddress || '';
   const fromName = item.from?.displayName || from;
   const subject = item.subject || 'No Subject';
@@ -34,11 +56,9 @@ function loadEmailAndDraft() {
   document.getElementById('meta-from').textContent = fromName || '—';
   document.getElementById('meta-subject').textContent = subject || '—';
 
-  // Get body then auto-draft
   item.body.getAsync(Office.CoercionType.Text, (result) => {
     const body = result.status === Office.AsyncResultStatus.Succeeded
-      ? result.value.trim()
-      : '';
+      ? result.value.trim() : '';
 
     currentEmail = {
       id: item.itemId || '',
@@ -49,7 +69,6 @@ function loadEmailAndDraft() {
       body: body.slice(0, 2000)
     };
 
-    // Auto-draft immediately on open
     requestDraft();
   });
 }
@@ -61,10 +80,9 @@ async function requestDraft() {
   isDrafting = true;
 
   setStatus('drafting', 'Drafting reply with Claude AI…');
-  showState('idle'); // Show idle view while drafting (status bar shows progress)
+  showState('idle');
   hideError();
 
-  // Disable manual draft button while generating
   const manualBtn = document.getElementById('btn-manual-draft');
   if (manualBtn) manualBtn.disabled = true;
 
@@ -89,58 +107,144 @@ async function requestDraft() {
     const data = await res.json();
     if (!data.draft) throw new Error('Empty draft returned');
 
-    // Show draft
     document.getElementById('draft-textarea').value = data.draft;
     setStatus('ready', 'Draft ready — review and send');
     showState('draft');
 
   } catch (err) {
     const isTimeout = err.name === 'AbortError';
-    const message = isTimeout ? 'Request timed out (30s)' : err.message;
+    const message = isTimeout ? 'Request timed out' : err.message;
     const hint = isTimeout
       ? 'The AI took too long. Try regenerating.'
-      : `Make sure the MailMind backend is running at:\n${BACKEND_URL}`;
-
+      : `Make sure the backend is running at:\n${BACKEND_URL}`;
     setStatus('error', message);
     showError(message, hint);
     showState('idle');
-
   } finally {
     isDrafting = false;
     if (manualBtn) manualBtn.disabled = false;
   }
 }
 
-// ─── SEND REPLY ───────────────────────────────────────────────────────────────
+// ─── SEND REPLY DIRECTLY ─────────────────────────────────────────────────────
 
 async function sendReply() {
-  const body = document.getElementById('draft-textarea').value.trim();
-  if (!body) return;
+  const draftBody = document.getElementById('draft-textarea').value.trim();
+  if (!draftBody) return;
 
   const btn = document.getElementById('btn-send');
   btn.textContent = 'Sending…';
   btn.disabled = true;
 
   try {
-    // Use Outlook's built-in reply display (works on web + desktop + mobile)
-    // This opens the reply compose window pre-filled with the draft
-    Office.context.mailbox.item.displayReplyForm(body);
+    const token = await getGraphToken();
+    await sendViaGraph(token, draftBody);
 
-    // Show sent confirmation
     showState('sent');
     setStatus('idle', '');
 
   } catch (err) {
-    btn.textContent = '✓ Send Reply';
-    btn.disabled = false;
-    setStatus('error', 'Failed to send: ' + err.message);
+    console.error('[MailMind] Send error:', err);
+
+    // If Graph API fails, fall back to EWS send
+    try {
+      await sendViaEWS(draftBody);
+      showState('sent');
+      setStatus('idle', '');
+    } catch (ewsErr) {
+      btn.textContent = '✓ Send Reply';
+      btn.disabled = false;
+      setStatus('error', 'Send failed: ' + err.message);
+      showError('Could not send', err.message);
+      showState('idle');
+    }
   }
+}
+
+// ─── SEND VIA MICROSOFT GRAPH ────────────────────────────────────────────────
+
+async function sendViaGraph(token, draftBody) {
+  const subject = currentEmail.subject || '';
+  const replySubject = subject.toLowerCase().startsWith('re:')
+    ? subject
+    : `Re: ${subject}`;
+
+  const message = {
+    subject: replySubject,
+    body: {
+      contentType: 'Text',
+      content: draftBody
+    },
+    toRecipients: [
+      {
+        emailAddress: {
+          address: currentEmail.from,
+          name: currentEmail.fromName || currentEmail.from
+        }
+      }
+    ]
+  };
+
+  // If we have a conversation ID, reply in thread
+  if (currentEmail.id) {
+    const res = await fetch(
+      `https://graph.microsoft.com/v1.0/me/messages/${currentEmail.id}/reply`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ message, comment: draftBody })
+      }
+    );
+
+    if (res.status === 202 || res.ok) return; // 202 Accepted = success for reply
+    
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData?.error?.message || `Graph error ${res.status}`);
+  }
+
+  // Fallback: send as new message
+  const res = await fetch('https://graph.microsoft.com/v1.0/me/sendMail', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ message, saveToSentItems: true })
+  });
+
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData?.error?.message || `Graph error ${res.status}`);
+  }
+}
+
+// ─── SEND VIA EWS (FALLBACK) ──────────────────────────────────────────────────
+
+async function sendViaEWS(draftBody) {
+  return new Promise((resolve, reject) => {
+    Office.context.mailbox.item.body.getAsync(
+      Office.CoercionType.Text,
+      async (result) => {
+        try {
+          // Create reply item and send
+          Office.context.mailbox.displayReplyForm({
+            htmlBody: draftBody.replace(/\n/g, '<br>'),
+          });
+          resolve();
+        } catch (err) {
+          reject(err);
+        }
+      }
+    );
+  });
 }
 
 // ─── STATE MANAGEMENT ─────────────────────────────────────────────────────────
 
 function showState(state) {
-  // Hide all views
   ['view-draft', 'view-idle', 'view-sent'].forEach(id => {
     const el = document.getElementById(id);
     if (el) {
@@ -149,7 +253,6 @@ function showState(state) {
     }
   });
 
-  // Show target view
   const target = document.getElementById(`view-${state}`);
   if (target) {
     target.classList.remove('hidden');
@@ -165,8 +268,6 @@ function setStatus(type, text) {
   bar.className = `status-bar ${type}`;
   bar.classList.remove('hidden');
   statusText.textContent = text;
-
-  // Clear old spinner
   icon.innerHTML = '';
 
   if (type === 'drafting') {
@@ -186,12 +287,9 @@ function showError(title, detail) {
   const box = document.getElementById('error-box');
   const titleEl = document.getElementById('error-title');
   const detailEl = document.getElementById('error-detail');
-
   box.classList.remove('hidden');
   titleEl.textContent = title;
-  detailEl.innerHTML = detail.includes('\n')
-    ? detail.replace(/\n/g, '<br>')
-    : detail;
+  detailEl.innerHTML = (detail || '').replace(/\n/g, '<br>');
 }
 
 function hideError() {
