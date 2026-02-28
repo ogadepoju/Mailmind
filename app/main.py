@@ -42,6 +42,8 @@ app.add_middleware(
 # Serve Outlook add-in files if folder exists
 if os.path.exists("outlook-addin"):
     app.mount("/outlook", StaticFiles(directory="outlook-addin"), name="outlook")
+if os.path.exists("icons"):
+    app.mount("/icons", StaticFiles(directory="icons"), name="icons")
 
 # ─── MODELS ──────────────────────────────────────────────────────────────────
 
