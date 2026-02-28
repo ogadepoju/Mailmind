@@ -1,14 +1,10 @@
-// MailMind — Outlook Taskpane v3
-// Sends directly via Microsoft Graph API — no draft, no compose window
+// MailMind — Outlook Taskpane v4
+// Uses Office.js makeEwsRequestAsync to send — works on personal accounts
 
 const BACKEND_URL = 'https://mailmind-6f1d.onrender.com';
 
-// Microsoft Graph - these scopes allow reading + sending email
-const GRAPH_SCOPES = ['https://graph.microsoft.com/Mail.Send'];
-
 let currentEmail = null;
 let isDrafting = false;
-let graphToken = null;
 
 // ─── OFFICE INIT ─────────────────────────────────────────────────────────────
 
@@ -18,26 +14,6 @@ Office.onReady((info) => {
     wireButtons();
   }
 });
-
-// ─── GET GRAPH TOKEN ─────────────────────────────────────────────────────────
-
-async function getGraphToken() {
-  if (graphToken) return graphToken;
-
-  try {
-    // Use Office SSO to get a token silently
-    const token = await Office.auth.getAccessToken({
-      allowSignInPrompt: true,
-      allowConsentPrompt: true,
-      forMSGraphAccess: true
-    });
-    graphToken = token;
-    return token;
-  } catch (err) {
-    console.error('[MailMind] SSO error:', err);
-    throw new Error('Could not get auth token: ' + err.message);
-  }
-}
 
 // ─── LOAD EMAIL + AUTO DRAFT ─────────────────────────────────────────────────
 
@@ -114,9 +90,7 @@ async function requestDraft() {
   } catch (err) {
     const isTimeout = err.name === 'AbortError';
     const message = isTimeout ? 'Request timed out' : err.message;
-    const hint = isTimeout
-      ? 'The AI took too long. Try regenerating.'
-      : `Make sure the backend is running at:\n${BACKEND_URL}`;
+    const hint = isTimeout ? 'Try regenerating.' : `Backend: ${BACKEND_URL}`;
     setStatus('error', message);
     showError(message, hint);
     showState('idle');
@@ -126,7 +100,9 @@ async function requestDraft() {
   }
 }
 
-// ─── SEND REPLY DIRECTLY ─────────────────────────────────────────────────────
+// ─── SEND VIA EWS ────────────────────────────────────────────────────────────
+// makeEwsRequestAsync works on personal outlook.com accounts
+// No token or Graph API needed
 
 async function sendReply() {
   const draftBody = document.getElementById('draft-textarea').value.trim();
@@ -137,108 +113,85 @@ async function sendReply() {
   btn.disabled = true;
 
   try {
-    const token = await getGraphToken();
-    await sendViaGraph(token, draftBody);
-
+    await sendViaEWS(draftBody);
     showState('sent');
     setStatus('idle', '');
-
   } catch (err) {
     console.error('[MailMind] Send error:', err);
-
-    // If Graph API fails, fall back to EWS send
-    try {
-      await sendViaEWS(draftBody);
-      showState('sent');
-      setStatus('idle', '');
-    } catch (ewsErr) {
-      btn.textContent = '✓ Send Reply';
-      btn.disabled = false;
-      setStatus('error', 'Send failed: ' + err.message);
-      showError('Could not send', err.message);
-      showState('idle');
-    }
+    btn.textContent = '✓ Send Reply';
+    btn.disabled = false;
+    setStatus('error', 'Send failed: ' + err.message);
+    showError('Could not send', err.message);
   }
 }
 
-// ─── SEND VIA MICROSOFT GRAPH ────────────────────────────────────────────────
-
-async function sendViaGraph(token, draftBody) {
-  const subject = currentEmail.subject || '';
-  const replySubject = subject.toLowerCase().startsWith('re:')
-    ? subject
-    : `Re: ${subject}`;
-
-  const message = {
-    subject: replySubject,
-    body: {
-      contentType: 'Text',
-      content: draftBody
-    },
-    toRecipients: [
-      {
-        emailAddress: {
-          address: currentEmail.from,
-          name: currentEmail.fromName || currentEmail.from
-        }
-      }
-    ]
-  };
-
-  // If we have a conversation ID, reply in thread
-  if (currentEmail.id) {
-    const res = await fetch(
-      `https://graph.microsoft.com/v1.0/me/messages/${currentEmail.id}/reply`,
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ message, comment: draftBody })
-      }
-    );
-
-    if (res.status === 202 || res.ok) return; // 202 Accepted = success for reply
-    
-    const errData = await res.json().catch(() => ({}));
-    throw new Error(errData?.error?.message || `Graph error ${res.status}`);
-  }
-
-  // Fallback: send as new message
-  const res = await fetch('https://graph.microsoft.com/v1.0/me/sendMail', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({ message, saveToSentItems: true })
-  });
-
-  if (!res.ok) {
-    const errData = await res.json().catch(() => ({}));
-    throw new Error(errData?.error?.message || `Graph error ${res.status}`);
-  }
-}
-
-// ─── SEND VIA EWS (FALLBACK) ──────────────────────────────────────────────────
-
-async function sendViaEWS(draftBody) {
+function sendViaEWS(bodyText) {
   return new Promise((resolve, reject) => {
-    Office.context.mailbox.item.body.getAsync(
-      Office.CoercionType.Text,
-      async (result) => {
-        try {
-          // Create reply item and send
-          Office.context.mailbox.displayReplyForm({
-            htmlBody: draftBody.replace(/\n/g, '<br>'),
-          });
+    const item = Office.context.mailbox.item;
+    const itemId = item.itemId;
+    const replySubject = currentEmail.subject?.toLowerCase().startsWith('re:')
+      ? currentEmail.subject
+      : `Re: ${currentEmail.subject}`;
+
+    // Escape special XML characters in the body
+    const escapedBody = bodyText
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&apos;')
+      .replace(/\n/g, '<br/>');
+
+    // Build EWS CreateItem SOAP request
+    const ewsRequest = `<?xml version="1.0" encoding="utf-8"?>
+<soap:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+               xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+               xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"
+               xmlns:t="http://schemas.microsoft.com/exchange/services/2006/types"
+               xmlns:m="http://schemas.microsoft.com/exchange/services/2006/messages">
+  <soap:Header>
+    <t:RequestServerVersion Version="Exchange2013"/>
+  </soap:Header>
+  <soap:Body>
+    <m:CreateItem MessageDisposition="SendAndSaveCopy">
+      <m:SavedItemFolderId>
+        <t:DistinguishedFolderId Id="sentitems"/>
+      </m:SavedItemFolderId>
+      <m:Items>
+        <t:Message>
+          <t:Subject>${replySubject.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</t:Subject>
+          <t:Body BodyType="HTML">${escapedBody}</t:Body>
+          <t:ToRecipients>
+            <t:Mailbox>
+              <t:EmailAddress>${currentEmail.from}</t:EmailAddress>
+              <t:Name>${(currentEmail.fromName || currentEmail.from).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</t:Name>
+            </t:Mailbox>
+          </t:ToRecipients>
+          <t:IsReplyAllowed>true</t:IsReplyAllowed>
+          <t:InReplyTo>${itemId}</t:InReplyTo>
+        </t:Message>
+      </m:Items>
+    </m:CreateItem>
+  </soap:Body>
+</soap:Envelope>`;
+
+    Office.context.mailbox.makeEwsRequestAsync(ewsRequest, (result) => {
+      if (result.status === Office.AsyncResultStatus.Succeeded) {
+        // Check EWS response for errors
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(result.value, 'text/xml');
+        const responseClass = xmlDoc.querySelector('[ResponseClass]')?.getAttribute('ResponseClass');
+
+        if (responseClass === 'Success') {
           resolve();
-        } catch (err) {
-          reject(err);
+        } else {
+          const messageText = xmlDoc.querySelector('MessageText')?.textContent || 'EWS send failed';
+          reject(new Error(messageText));
         }
+      } else {
+        reject(new Error(result.error?.message || 'EWS request failed'));
       }
-    );
+    });
   });
 }
 
@@ -247,12 +200,8 @@ async function sendViaEWS(draftBody) {
 function showState(state) {
   ['view-draft', 'view-idle', 'view-sent'].forEach(id => {
     const el = document.getElementById(id);
-    if (el) {
-      el.classList.add('hidden');
-      el.style.display = 'none';
-    }
+    if (el) { el.classList.add('hidden'); el.style.display = 'none'; }
   });
-
   const target = document.getElementById(`view-${state}`);
   if (target) {
     target.classList.remove('hidden');
@@ -264,12 +213,10 @@ function setStatus(type, text) {
   const bar = document.getElementById('status-bar');
   const icon = document.getElementById('status-icon');
   const statusText = document.getElementById('status-text');
-
   bar.className = `status-bar ${type}`;
   bar.classList.remove('hidden');
   statusText.textContent = text;
   icon.innerHTML = '';
-
   if (type === 'drafting') {
     const spinner = document.createElement('div');
     spinner.className = 'status-spinner';
@@ -285,11 +232,9 @@ function setStatus(type, text) {
 
 function showError(title, detail) {
   const box = document.getElementById('error-box');
-  const titleEl = document.getElementById('error-title');
-  const detailEl = document.getElementById('error-detail');
+  document.getElementById('error-title').textContent = title;
+  document.getElementById('error-detail').innerHTML = (detail || '').replace(/\n/g, '<br>');
   box.classList.remove('hidden');
-  titleEl.textContent = title;
-  detailEl.innerHTML = (detail || '').replace(/\n/g, '<br>');
 }
 
 function hideError() {
@@ -299,30 +244,18 @@ function hideError() {
 // ─── WIRE BUTTONS ─────────────────────────────────────────────────────────────
 
 function wireButtons() {
-  document.getElementById('btn-send')
-    ?.addEventListener('click', sendReply);
-
-  document.getElementById('btn-regen')
-    ?.addEventListener('click', () => {
-      document.getElementById('draft-textarea').value = '';
-      requestDraft();
-    });
-
-  document.getElementById('btn-manual-draft')
-    ?.addEventListener('click', () => {
-      hideError();
-      requestDraft();
-    });
-
-  document.getElementById('btn-retry')
-    ?.addEventListener('click', () => {
-      hideError();
-      requestDraft();
-    });
-
-  document.getElementById('btn-after-sent')
-    ?.addEventListener('click', () => {
-      showState('idle');
-      setStatus('idle', '');
-    });
+  document.getElementById('btn-send')?.addEventListener('click', sendReply);
+  document.getElementById('btn-regen')?.addEventListener('click', () => {
+    document.getElementById('draft-textarea').value = '';
+    requestDraft();
+  });
+  document.getElementById('btn-manual-draft')?.addEventListener('click', () => {
+    hideError(); requestDraft();
+  });
+  document.getElementById('btn-retry')?.addEventListener('click', () => {
+    hideError(); requestDraft();
+  });
+  document.getElementById('btn-after-sent')?.addEventListener('click', () => {
+    showState('idle'); setStatus('idle', '');
+  });
 }
