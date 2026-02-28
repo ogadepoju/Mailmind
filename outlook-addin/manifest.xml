@@ -6,19 +6,20 @@
   xmlns:mailappor="http://schemas.microsoft.com/office/mailappversionoverrides/1.0"
   xsi:type="MessageReadApp">
 
-  <Id>mailmind-outlook-addin-v2</Id>
+  <Id>a1b2c3d4-e5f6-7890-abcd-ef1234567890</Id>
   <Version>2.0.0.0</Version>
   <ProviderName>MailMind</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
-  <DisplayName DefaultValue="MailMind — AI Reply Assistant"/>
-  <Description DefaultValue="Draft email replies privately using AI. Review and send with one click."/>
+
+  <DisplayName DefaultValue="MailMind"/>
+  <Description DefaultValue="Draft email replies instantly using AI. Review and send with one click."/>
+
   <IconUrl DefaultValue="https://mailmind-6f1d.onrender.com/icons/icon64.png"/>
   <HighResolutionIconUrl DefaultValue="https://mailmind-6f1d.onrender.com/icons/icon128.png"/>
   <SupportUrl DefaultValue="https://mailmind-6f1d.onrender.com"/>
 
   <AppDomains>
-    <AppDomain>https://mailmind-6f1d.onrender.com</AppDomain>
-    <AppDomain>localhost</AppDomain>
+    <AppDomain>mailmind-6f1d.onrender.com</AppDomain>
   </AppDomains>
 
   <Hosts>
@@ -26,8 +27,8 @@
   </Hosts>
 
   <Requirements>
-    <Sets>
-      <Set Name="Mailbox" MinVersion="1.3"/>
+    <Sets DefaultMinVersion="1.1">
+      <Set Name="Mailbox" MinVersion="1.1"/>
     </Sets>
   </Requirements>
 
@@ -37,6 +38,9 @@
         <SourceLocation DefaultValue="https://mailmind-6f1d.onrender.com/outlook/taskpane.html"/>
         <RequestedHeight>550</RequestedHeight>
       </DesktopSettings>
+      <PhoneSettings>
+        <SourceLocation DefaultValue="https://mailmind-6f1d.onrender.com/outlook/taskpane.html"/>
+      </PhoneSettings>
     </Form>
   </FormSettings>
 
@@ -45,5 +49,7 @@
   <Rule xsi:type="RuleCollection" Mode="Or">
     <Rule xsi:type="ItemIs" ItemType="Message" FormType="Read"/>
   </Rule>
+
+  <DisableEntityHighlighting>false</DisableEntityHighlighting>
 
 </OfficeApp>
