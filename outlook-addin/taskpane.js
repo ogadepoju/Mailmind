@@ -1,5 +1,5 @@
-// MailMind — Outlook Taskpane v5
-// Simplified EWS send — works on personal outlook.com accounts
+// MailMind — Outlook Taskpane v6
+// Uses displayReplyAllForm with pre-filled body — works on all account types
 
 const BACKEND_URL = 'https://mailmind-6f1d.onrender.com';
 
@@ -84,14 +84,13 @@ async function requestDraft() {
     if (!data.draft) throw new Error('Empty draft returned');
 
     document.getElementById('draft-textarea').value = data.draft;
-    setStatus('ready', 'Draft ready — review and send');
+    setStatus('ready', 'Draft ready — click Send to open pre-filled reply');
     showState('draft');
 
   } catch (err) {
     const isTimeout = err.name === 'AbortError';
-    const message = isTimeout ? 'Request timed out' : err.message;
-    setStatus('error', message);
-    showError(message, isTimeout ? 'Try regenerating.' : `Backend: ${BACKEND_URL}`);
+    setStatus('error', isTimeout ? 'Request timed out' : err.message);
+    showError(isTimeout ? 'Timed out' : err.message, `Backend: ${BACKEND_URL}`);
     showState('idle');
   } finally {
     isDrafting = false;
@@ -100,106 +99,52 @@ async function requestDraft() {
 }
 
 // ─── SEND ────────────────────────────────────────────────────────────────────
+// Opens a pre-filled reply compose window.
+// User clicks Send once in the compose window — one click, already addressed.
 
-async function sendReply() {
+function sendReply() {
   const draftBody = document.getElementById('draft-textarea').value.trim();
   if (!draftBody) return;
 
   const btn = document.getElementById('btn-send');
-  btn.textContent = 'Sending…';
+  btn.textContent = 'Opening…';
   btn.disabled = true;
 
   try {
-    await sendViaEWS(draftBody);
-    showState('sent');
-    setStatus('idle', '');
-  } catch (err) {
-    console.error('[MailMind] Send error:', err);
-    btn.textContent = '✓ Send Reply';
-    btn.disabled = false;
-    setStatus('error', 'Send failed: ' + err.message);
-    showError('Could not send', err.message);
-  }
-}
+    // Convert plain text to HTML for better formatting
+    const htmlBody = draftBody
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/\n\n/g, '</p><p>')
+      .replace(/\n/g, '<br>');
 
-// ─── EWS SEND ────────────────────────────────────────────────────────────────
+    const fullHtml = `<p>${htmlBody}</p>`;
 
-function xmlEscape(str) {
-  return (str || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
-}
-
-function sendViaEWS(bodyText) {
-  return new Promise((resolve, reject) => {
-    const replySubject = currentEmail.subject?.toLowerCase().startsWith('re:')
-      ? currentEmail.subject
-      : `Re: ${currentEmail.subject}`;
-
-    // Convert plain text newlines to HTML breaks
-    const htmlBody = xmlEscape(bodyText).replace(/\n/g, '<br/>');
-
-    const soap = `<?xml version="1.0" encoding="utf-8"?>
-<soap:Envelope
-  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-  xmlns:xsd="http://www.w3.org/2001/XMLSchema"
-  xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"
-  xmlns:t="http://schemas.microsoft.com/exchange/services/2006/types"
-  xmlns:m="http://schemas.microsoft.com/exchange/services/2006/messages">
-  <soap:Header>
-    <t:RequestServerVersion Version="Exchange2013_SP1"/>
-  </soap:Header>
-  <soap:Body>
-    <m:CreateItem MessageDisposition="SendAndSaveCopy">
-      <m:SavedItemFolderId>
-        <t:DistinguishedFolderId Id="sentitems"/>
-      </m:SavedItemFolderId>
-      <m:Items>
-        <t:Message>
-          <t:Subject>${xmlEscape(replySubject)}</t:Subject>
-          <t:Body BodyType="HTML">${htmlBody}</t:Body>
-          <t:ToRecipients>
-            <t:Mailbox>
-              <t:EmailAddress>${xmlEscape(currentEmail.from)}</t:EmailAddress>
-            </t:Mailbox>
-          </t:ToRecipients>
-        </t:Message>
-      </m:Items>
-    </m:CreateItem>
-  </soap:Body>
-</soap:Envelope>`;
-
-    Office.context.mailbox.makeEwsRequestAsync(soap, (result) => {
-      if (result.status !== Office.AsyncResultStatus.Succeeded) {
-        return reject(new Error(result.error?.message || 'EWS request failed'));
-      }
-
-      try {
-        const parser = new DOMParser();
-        const xml = parser.parseFromString(result.value, 'text/xml');
-        const responseClass = xml.querySelector('[ResponseClass]')?.getAttribute('ResponseClass');
-        const messageText = xml.querySelector('MessageText')?.textContent;
-
-        if (responseClass === 'Success') {
-          resolve();
-        } else {
-          reject(new Error(messageText || 'Unknown EWS error'));
-        }
-      } catch (parseErr) {
-        // If we can't parse the response but request succeeded, assume it worked
-        resolve();
-      }
+    // displayReplyForm opens a compose window pre-filled with:
+    // - To: already set to the original sender
+    // - Subject: Re: [original subject]  
+    // - Body: your draft already typed in
+    // User just clicks Send — one click
+    Office.context.mailbox.item.displayReplyForm({
+      htmlBody: fullHtml
     });
-  });
+
+    // Show instructions
+    showState('sending');
+
+  } catch (err) {
+    console.error('[MailMind] Open reply error:', err);
+    btn.textContent = '✓ Open Reply';
+    btn.disabled = false;
+    setStatus('error', 'Could not open reply: ' + err.message);
+  }
 }
 
 // ─── STATE MANAGEMENT ─────────────────────────────────────────────────────────
 
 function showState(state) {
-  ['view-draft', 'view-idle', 'view-sent'].forEach(id => {
+  ['view-draft', 'view-idle', 'view-sent', 'view-sending'].forEach(id => {
     const el = document.getElementById(id);
     if (el) { el.classList.add('hidden'); el.style.display = 'none'; }
   });
@@ -232,17 +177,14 @@ function setStatus(type, text) {
 }
 
 function showError(title, detail) {
-  const box = document.getElementById('error-box');
+  document.getElementById('error-box')?.classList.remove('hidden');
   document.getElementById('error-title').textContent = title;
   document.getElementById('error-detail').innerHTML = (detail || '').replace(/\n/g, '<br>');
-  box.classList.remove('hidden');
 }
 
 function hideError() {
   document.getElementById('error-box')?.classList.add('hidden');
 }
-
-// ─── WIRE BUTTONS ─────────────────────────────────────────────────────────────
 
 function wireButtons() {
   document.getElementById('btn-send')?.addEventListener('click', sendReply);
@@ -258,5 +200,10 @@ function wireButtons() {
   });
   document.getElementById('btn-after-sent')?.addEventListener('click', () => {
     showState('idle'); setStatus('idle', '');
+  });
+  document.getElementById('btn-sending-back')?.addEventListener('click', () => {
+    showState('draft');
+    const btn = document.getElementById('btn-send');
+    if (btn) { btn.textContent = '✓ Open Reply'; btn.disabled = false; }
   });
 }
