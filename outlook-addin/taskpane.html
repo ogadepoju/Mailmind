@@ -12,7 +12,6 @@
     --surface: #12121a;
     --border: #1e1e2e;
     --accent: #00e5ff;
-    --accent2: #7c3aed;
     --green: #10b981;
     --amber: #f59e0b;
     --red: #ef4444;
@@ -32,6 +31,65 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
+  }
+
+  /* ─── PIN BANNER ─── */
+  #pin-banner {
+    background: linear-gradient(135deg, rgba(0,229,255,0.08), rgba(124,58,237,0.08));
+    border-bottom: 1px solid rgba(0,229,255,0.2);
+    padding: 10px 12px;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    flex-shrink: 0;
+    animation: mm-slidein 0.4s ease;
+  }
+
+  @keyframes mm-slidein {
+    from { opacity: 0; transform: translateY(-8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .pin-icon {
+    font-size: 18px;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  .pin-text { flex: 1; }
+
+  .pin-title {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--accent);
+    margin-bottom: 3px;
+  }
+
+  .pin-desc {
+    font-size: 10px;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+
+  .pin-desc strong { color: var(--text); }
+
+  .pin-dismiss {
+    background: rgba(0,229,255,0.1);
+    border: 1px solid rgba(0,229,255,0.25);
+    border-radius: 5px;
+    color: var(--accent);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 4px 10px;
+    cursor: pointer;
+    flex-shrink: 0;
+    margin-top: 2px;
+    transition: all 0.15s;
+  }
+
+  .pin-dismiss:hover {
+    background: rgba(0,229,255,0.2);
   }
 
   /* ─── HEADER ─── */
@@ -66,7 +124,7 @@
     background-clip: text;
   }
 
-  .brand-sub { font-size: 9px; color: var(--muted); margin-top: 1px; letter-spacing: 0.1em; }
+  .brand-sub { font-size: 9px; color: var(--muted); margin-top: 1px; }
 
   .engine-badge {
     font-size: 9px;
@@ -75,7 +133,6 @@
     border: 1px solid rgba(124,58,237,0.3);
     border-radius: 10px;
     color: #a78bfa;
-    letter-spacing: 0.05em;
   }
 
   /* ─── EMAIL CARD ─── */
@@ -88,32 +145,10 @@
     flex-shrink: 0;
   }
 
-  .email-row {
-    display: flex;
-    gap: 8px;
-    align-items: baseline;
-    margin-bottom: 3px;
-  }
+  .email-row { display: flex; gap: 8px; align-items: baseline; margin-bottom: 3px; }
   .email-row:last-child { margin-bottom: 0; }
-
-  .email-key {
-    font-size: 9px;
-    text-transform: uppercase;
-    letter-spacing: 0.15em;
-    color: var(--muted);
-    min-width: 40px;
-    flex-shrink: 0;
-  }
-
-  .email-val {
-    font-size: 11px;
-    color: var(--text);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    flex: 1;
-  }
-
+  .email-key { font-size: 9px; text-transform: uppercase; letter-spacing: 0.15em; color: var(--muted); min-width: 40px; flex-shrink: 0; }
+  .email-val { font-size: 11px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
   .email-val.accent { color: var(--accent); }
 
   /* ─── STATUS BAR ─── */
@@ -129,29 +164,10 @@
     transition: all 0.3s;
   }
 
-  .status-bar.drafting {
-    background: rgba(245,158,11,0.08);
-    border: 1px solid rgba(245,158,11,0.25);
-    color: var(--amber);
-  }
-
-  .status-bar.ready {
-    background: rgba(0,229,255,0.06);
-    border: 1px solid rgba(0,229,255,0.2);
-    color: var(--accent);
-  }
-
-  .status-bar.error {
-    background: rgba(239,68,68,0.08);
-    border: 1px solid rgba(239,68,68,0.25);
-    color: var(--red);
-  }
-
-  .status-bar.idle {
-    background: rgba(100,116,139,0.08);
-    border: 1px solid rgba(100,116,139,0.15);
-    color: var(--muted);
-  }
+  .status-bar.drafting { background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.25); color: var(--amber); }
+  .status-bar.ready    { background: rgba(0,229,255,0.06);  border: 1px solid rgba(0,229,255,0.2);  color: var(--accent); }
+  .status-bar.error    { background: rgba(239,68,68,0.08);  border: 1px solid rgba(239,68,68,0.25); color: var(--red); }
+  .status-bar.idle     { background: rgba(100,116,139,0.08);border: 1px solid rgba(100,116,139,0.15);color: var(--muted); }
 
   .status-spinner {
     width: 14px; height: 14px;
@@ -165,50 +181,28 @@
   @keyframes spin { to { transform: rotate(360deg); } }
 
   /* ─── DRAFT AREA ─── */
-  .draft-section {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    margin: 0 12px;
-  }
-
-  .draft-label {
-    font-size: 9px;
-    letter-spacing: 0.2em;
-    text-transform: uppercase;
-    color: var(--muted);
-    margin-bottom: 6px;
-    flex-shrink: 0;
-  }
+  .draft-section { flex: 1; display: flex; flex-direction: column; overflow: hidden; margin: 0 12px; }
+  .draft-label { font-size: 9px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; flex-shrink: 0; }
 
   .draft-textarea {
-    flex: 1;
-    width: 100%;
+    flex: 1; width: 100%;
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 8px;
     color: var(--text);
     font-family: 'JetBrains Mono', monospace;
-    font-size: 12px;
-    line-height: 1.75;
-    padding: 12px;
-    resize: none;
-    outline: none;
+    font-size: 12px; line-height: 1.75;
+    padding: 12px; resize: none; outline: none;
     transition: border-color 0.15s;
     min-height: 120px;
   }
-
   .draft-textarea:focus { border-color: rgba(0,229,255,0.35); }
-  .draft-textarea::placeholder { color: var(--subtle); }
   .draft-textarea:disabled { opacity: 0.4; cursor: not-allowed; }
 
   /* ─── ACTIONS ─── */
   .actions {
-    padding: 12px 12px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
+    padding: 12px;
+    display: flex; flex-direction: column; gap: 8px;
     flex-shrink: 0;
     border-top: 1px solid var(--border);
     margin-top: 12px;
@@ -217,89 +211,57 @@
   .actions-row { display: flex; gap: 8px; }
 
   .btn {
-    flex: 1;
-    padding: 10px 14px;
-    border-radius: 7px;
+    flex: 1; padding: 10px 14px; border-radius: 7px;
     font-family: 'JetBrains Mono', monospace;
-    font-size: 11px;
-    font-weight: 600;
-    cursor: pointer;
-    border: 1px solid;
-    transition: all 0.15s;
-    text-align: center;
-    letter-spacing: 0.03em;
+    font-size: 11px; font-weight: 600;
+    cursor: pointer; border: 1px solid;
+    transition: all 0.15s; text-align: center;
   }
-
   .btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
-  .btn-send {
-    background: var(--green);
-    color: #0a0a0f;
-    border-color: var(--green);
-  }
+  .btn-send { background: var(--green); color: #0a0a0f; border-color: var(--green); }
   .btn-send:hover:not(:disabled) { background: #34d399; box-shadow: 0 0 16px rgba(16,185,129,0.3); }
 
-  .btn-regen {
-    background: transparent;
-    color: var(--muted);
-    border-color: var(--border);
-  }
+  .btn-regen { background: transparent; color: var(--muted); border-color: var(--border); }
   .btn-regen:hover:not(:disabled) { color: var(--text); border-color: var(--muted); }
 
-  .btn-draft {
-    background: var(--accent);
-    color: #0a0a0f;
-    border-color: var(--accent);
-  }
-  .btn-draft:hover:not(:disabled) { background: #33eaff; box-shadow: 0 0 16px rgba(0,229,255,0.3); }
+  .btn-draft { background: var(--accent); color: #0a0a0f; border-color: var(--accent); }
+  .btn-draft:hover:not(:disabled) { background: #33eaff; }
 
-  /* ─── PRIVACY NOTE ─── */
-  .privacy-note {
-    text-align: center;
-    font-size: 10px;
-    color: var(--subtle);
-    padding-bottom: 4px;
-  }
+  .privacy-note { text-align: center; font-size: 10px; color: var(--subtle); padding-bottom: 4px; }
 
-  /* ─── SENT STATE ─── */
+  /* ─── SENT ─── */
   .sent-view {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 12px;
-    padding: 24px;
-    text-align: center;
+    flex: 1; display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 12px; padding: 24px; text-align: center;
   }
-
   .sent-icon { font-size: 36px; color: var(--green); }
   .sent-title { font-family: 'Syne', sans-serif; font-size: 16px; font-weight: 800; color: var(--text); }
   .sent-sub { font-size: 11px; color: var(--muted); line-height: 1.6; }
 
-  /* ─── ERROR DETAIL ─── */
-  .error-detail {
-    font-size: 10px;
-    color: var(--muted);
-    line-height: 1.6;
-    margin-top: 4px;
-  }
+  /* ─── ERROR ─── */
+  .error-detail { font-size: 10px; color: var(--muted); line-height: 1.6; margin-top: 4px; }
 
-  .error-detail code {
-    display: block;
-    margin-top: 8px;
-    background: var(--surface);
-    padding: 8px 10px;
-    border-radius: 4px;
-    color: var(--accent);
-    font-size: 10px;
-  }
-
-  /* ─── HIDDEN/SHOWN HELPERS ─── */
+  /* ─── HELPERS ─── */
   .hidden { display: none !important; }
 </style>
 </head>
 <body>
+
+<!-- Pin Banner — shows on first open only -->
+<div id="pin-banner">
+  <div class="pin-icon">📌</div>
+  <div class="pin-text">
+    <div class="pin-title">Pin MailMind to stay open</div>
+    <div class="pin-desc">
+      Click the <strong>pin icon</strong> in the top-right corner of this panel
+      to keep MailMind open automatically every time you read an email.
+      You'll only need to open it once.
+    </div>
+  </div>
+  <button class="pin-dismiss" id="pin-dismiss">Got it</button>
+</div>
 
 <!-- Header -->
 <div class="header">
@@ -331,8 +293,6 @@
   <span id="status-text"></span>
 </div>
 
-<!-- Main content area — switches between states -->
-
 <!-- Draft view -->
 <div id="view-draft" class="hidden" style="flex:1;display:flex;flex-direction:column;overflow:hidden;">
   <div class="draft-section">
@@ -348,7 +308,7 @@
   </div>
 </div>
 
-<!-- Idle view (no email open / initial) -->
+<!-- Idle view -->
 <div id="view-idle" style="flex:1;display:flex;flex-direction:column;padding:12px;gap:10px;">
   <div style="color:var(--muted);font-size:11px;line-height:1.7;padding:8px 0;">
     Open an email to automatically generate a draft reply, or click below to draft manually.
@@ -372,5 +332,28 @@
 </div>
 
 <script src="taskpane.js"></script>
+<script>
+  // Pin banner — show once, hide forever after dismiss
+  const banner = document.getElementById('pin-banner');
+  const dismissBtn = document.getElementById('pin-dismiss');
+
+  // Check if already dismissed (stored in localStorage)
+  if (localStorage.getItem('mailmind-pin-dismissed')) {
+    banner.style.display = 'none';
+  }
+
+  dismissBtn.addEventListener('click', () => {
+    localStorage.setItem('mailmind-pin-dismissed', '1');
+    banner.style.height = banner.offsetHeight + 'px';
+    banner.style.overflow = 'hidden';
+    banner.style.transition = 'all 0.3s ease';
+    requestAnimationFrame(() => {
+      banner.style.height = '0';
+      banner.style.padding = '0';
+      banner.style.opacity = '0';
+    });
+    setTimeout(() => banner.style.display = 'none', 300);
+  });
+</script>
 </body>
 </html>
