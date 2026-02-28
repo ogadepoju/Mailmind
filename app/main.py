@@ -30,6 +30,8 @@ settings = Settings()
 
 app = FastAPI(title="MailMind API", version="2.0.0")
 
+from fastapi.staticfiles import StaticFiles
+app.mount("/outlook", StaticFiles(directory="outlook-addin"), name="outlook")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
