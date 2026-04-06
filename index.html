@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DraftMate — AI Email Reply Assistant</title>
+<meta name="description" content="DraftMate drafts email replies for you instantly inside Gmail and Outlook Web. Powered by Claude AI. Free Chrome extension.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #06060E;
+    --surface: #0D0D1A;
+    --card: #111122;
+    --border: rgba(255,255,255,0.07);
+    --border-bright: rgba(0,229,255,0.25);
+    --cyan: #00E5FF;
+    --cyan-dim: rgba(0,229,255,0.12);
+    --green: #10B981;
+    --green-dim: rgba(16,185,129,0.12);
+    --white: #FFFFFF;
+    --gray: #8892A4;
+    --gray2: #4A5568;
+    --serif: 'Instrument Serif', Georgia, serif;
+    --sans: 'DM Sans', system-ui, sans-serif;
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--white);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+
+  /* ── NAV ── */
+  nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 5%;
+    height: 64px;
+    background: rgba(6,6,14,0.85);
+    backdrop-filter: blur(16px);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .nav-logo {
+    display: flex; align-items: center; gap: 10px;
+    text-decoration: none;
+  }
+
+  .nav-logo-icon {
+    width: 36px; height: 36px;
+    border: 1.5px solid var(--cyan);
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; color: var(--cyan);
+    background: var(--cyan-dim);
+  }
+
+  .nav-logo-text {
+    font-size: 18px; font-weight: 500; color: var(--white);
+    letter-spacing: -0.3px;
+  }
+
+  .nav-cta {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 8px 20px;
+    background: var(--cyan);
+    color: #03090A;
+    font-size: 14px; font-weight: 500;
+    border-radius: 8px;
+    text-decoration: none;
+    transition: opacity 0.2s;
+  }
+  .nav-cta:hover { opacity: 0.88; }
+
+  /* ── HERO ── */
+  .hero {
+    min-height: 100vh;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 120px 5% 80px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .hero-glow {
+    position: absolute;
+    width: 700px; height: 700px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(0,229,255,0.06) 0%, transparent 70%);
+    top: 50%; left: 50%;
+    transform: translate(-50%, -60%);
+    pointer-events: none;
+  }
+
+  .hero-grid {
+    position: absolute; inset: 0;
+    background-image:
+      linear-gradient(rgba(0,229,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,229,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+  }
+
+  .hero-badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 6px 16px;
+    border: 1px solid var(--border-bright);
+    border-radius: 20px;
+    font-size: 13px; color: var(--cyan);
+    background: var(--cyan-dim);
+    margin-bottom: 32px;
+    position: relative;
+  }
+
+  .hero-badge-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--cyan);
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.8); }
+  }
+
+  .hero h1 {
+    font-family: var(--serif);
+    font-size: clamp(48px, 7vw, 88px);
+    font-weight: 400;
+    line-height: 1.05;
+    letter-spacing: -1px;
+    color: var(--white);
+    max-width: 900px;
+    position: relative;
+  }
+
+  .hero h1 em {
+    font-style: italic;
+    color: var(--cyan);
+  }
+
+  .hero-sub {
+    font-size: clamp(16px, 2vw, 20px);
+    color: var(--gray);
+    max-width: 560px;
+    margin: 24px auto 48px;
+    font-weight: 300;
+    line-height: 1.6;
+    position: relative;
+  }
+
+  .hero-actions {
+    display: flex; align-items: center; gap: 16px;
+    flex-wrap: wrap; justify-content: center;
+    position: relative;
+  }
+
+  .btn-primary {
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 14px 28px;
+    background: var(--cyan);
+    color: #03090A;
+    font-size: 16px; font-weight: 500;
+    border-radius: 10px;
+    text-decoration: none;
+    transition: all 0.2s;
+    box-shadow: 0 0 40px rgba(0,229,255,0.2);
+  }
+  .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); box-shadow: 0 0 60px rgba(0,229,255,0.3); }
+
+  .btn-secondary {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 14px 28px;
+    border: 1px solid var(--border-bright);
+    color: var(--white);
+    font-size: 16px; font-weight: 400;
+    border-radius: 10px;
+    text-decoration: none;
+    background: transparent;
+    transition: all 0.2s;
+  }
+  .btn-secondary:hover { background: var(--cyan-dim); border-color: var(--cyan); }
+
+  .hero-platforms {
+    margin-top: 64px;
+    display: flex; align-items: center; gap: 24px;
+    justify-content: center;
+    position: relative;
+  }
+
+  .platform-pill {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 8px 16px;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    font-size: 13px; color: var(--gray);
+    background: var(--surface);
+  }
+
+  .platform-dot { width: 8px; height: 8px; border-radius: 50%; }
+
+  /* ── HOW IT WORKS ── */
+  section { padding: 100px 5%; }
+
+  .section-label {
+    font-size: 12px; font-weight: 500; letter-spacing: 0.12em;
+    color: var(--cyan); text-transform: uppercase;
+    margin-bottom: 16px;
+  }
+
+  .section-title {
+    font-family: var(--serif);
+    font-size: clamp(32px, 4vw, 52px);
+    font-weight: 400;
+    line-height: 1.1;
+    letter-spacing: -0.5px;
+    color: var(--white);
+    max-width: 600px;
+    margin-bottom: 64px;
+  }
+
+  .steps {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 2px;
+    max-width: 960px;
+  }
+
+  .step {
+    background: var(--card);
+    border: 1px solid var(--border);
+    padding: 40px 32px;
+    position: relative;
+    transition: border-color 0.2s;
+  }
+  .step:first-child { border-radius: 12px 0 0 12px; }
+  .step:last-child { border-radius: 0 12px 12px 0; }
+  .step:hover { border-color: var(--border-bright); }
+
+  .step-num {
+    font-size: 11px; font-weight: 500; letter-spacing: 0.1em;
+    color: var(--cyan); margin-bottom: 20px;
+    font-family: 'DM Mono', monospace;
+  }
+
+  .step-icon {
+    font-size: 28px; margin-bottom: 16px;
+    display: block;
+  }
+
+  .step h3 {
+    font-size: 17px; font-weight: 500;
+    color: var(--white); margin-bottom: 10px;
+  }
+
+  .step p {
+    font-size: 14px; color: var(--gray);
+    line-height: 1.6; font-weight: 300;
+  }
+
+  /* ── FEATURES ── */
+  .features-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1px;
+    max-width: 960px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  .feature {
+    background: var(--card);
+    padding: 36px 32px;
+    border-right: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    transition: background 0.2s;
+  }
+  .feature:hover { background: var(--surface); }
+
+  .feature-icon {
+    width: 40px; height: 40px;
+    border-radius: 10px;
+    border: 1px solid var(--border-bright);
+    background: var(--cyan-dim);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+    margin-bottom: 20px;
+    color: var(--cyan);
+  }
+
+  .feature h3 {
+    font-size: 16px; font-weight: 500;
+    color: var(--white); margin-bottom: 8px;
+  }
+
+  .feature p {
+    font-size: 14px; color: var(--gray);
+    line-height: 1.6; font-weight: 300;
+  }
+
+  /* ── STORY ── */
+  .story {
+    max-width: 720px;
+    padding: 100px 5%;
+  }
+
+  .story-quote {
+    font-family: var(--serif);
+    font-size: clamp(24px, 3.5vw, 40px);
+    font-style: italic;
+    color: var(--white);
+    line-height: 1.3;
+    margin-bottom: 32px;
+    padding-left: 24px;
+    border-left: 3px solid var(--cyan);
+  }
+
+  .story-body {
+    font-size: 17px; color: var(--gray);
+    line-height: 1.8; font-weight: 300;
+    margin-bottom: 20px;
+  }
+
+  .story-sig {
+    font-size: 14px; color: var(--gray2);
+    margin-top: 32px;
+  }
+
+  /* ── POWERED BY ── */
+  .powered {
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 12px 20px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+    font-size: 14px; color: var(--gray);
+    margin-top: 48px;
+  }
+
+  .powered strong { color: var(--white); font-weight: 500; }
+
+  /* ── CTA SECTION ── */
+  .cta-section {
+    text-align: center;
+    padding: 120px 5%;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .cta-glow {
+    position: absolute;
+    width: 500px; height: 500px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(16,185,129,0.07) 0%, transparent 70%);
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+  }
+
+  .cta-section h2 {
+    font-family: var(--serif);
+    font-size: clamp(36px, 5vw, 64px);
+    font-weight: 400; line-height: 1.1;
+    letter-spacing: -0.5px;
+    color: var(--white);
+    margin-bottom: 24px;
+    position: relative;
+  }
+
+  .cta-section p {
+    font-size: 18px; color: var(--gray);
+    margin-bottom: 48px; font-weight: 300;
+    position: relative;
+  }
+
+  /* ── FOOTER ── */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 40px 5%;
+    display: flex; align-items: center; justify-content: space-between;
+    flex-wrap: wrap; gap: 16px;
+  }
+
+  footer p { font-size: 13px; color: var(--gray2); }
+
+  footer a {
+    font-size: 13px; color: var(--gray);
+    text-decoration: none;
+  }
+  footer a:hover { color: var(--cyan); }
+
+  .footer-links { display: flex; gap: 24px; }
+
+  /* ── ANIMATIONS ── */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .hero > * { animation: fadeUp 0.6s ease both; }
+  .hero-badge { animation-delay: 0.1s; }
+  .hero h1 { animation-delay: 0.2s; }
+  .hero-sub { animation-delay: 0.3s; }
+  .hero-actions { animation-delay: 0.4s; }
+  .hero-platforms { animation-delay: 0.5s; }
+
+  @media (max-width: 640px) {
+    .step:first-child, .step:last-child { border-radius: 0; }
+    .step:first-child { border-radius: 12px 12px 0 0; }
+    .step:last-child { border-radius: 0 0 12px 12px; }
+    nav { padding: 0 4%; }
+    .nav-logo-text { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <a href="#" class="nav-logo">
+    <div class="nav-logo-icon">✦</div>
+    <span class="nav-logo-text">DraftMate</span>
+  </a>
+  <a href="https://chromewebstore.google.com/detail/mailmind/cbkfcobhkfjijijhmopeebkljlbiigff"
+     class="nav-cta" target="_blank" rel="noopener">
+    Add to Chrome — Free
+  </a>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-grid"></div>
+  <div class="hero-glow"></div>
+
+  <div class="hero-badge">
+    <span class="hero-badge-dot"></span>
+    Now live on the Chrome Web Store
+  </div>
+
+  <h1>Stop staring at a<br><em>blank reply box.</em></h1>
+
+  <p class="hero-sub">
+    DraftMate sits inside your Gmail or Outlook and drafts a reply
+    the moment you open an email. Review it, edit it, send it.
+  </p>
+
+  <div class="hero-actions">
+    <a href="https://chromewebstore.google.com/detail/mailmind/cbkfcobhkfjijijhmopeebkljlbiigff"
+       class="btn-primary" target="_blank" rel="noopener">
+      ↓ &nbsp; Add to Chrome — Free
+    </a>
+    <a href="#how-it-works" class="btn-secondary">See how it works</a>
+  </div>
+
+  <div class="hero-platforms">
+    <span class="platform-pill">
+      <span class="platform-dot" style="background:#EA4335;"></span>
+      Gmail
+    </span>
+    <span class="platform-pill">
+      <span class="platform-dot" style="background:#0078D4;"></span>
+      Outlook Web
+    </span>
+    <span class="platform-pill">
+      <span class="platform-dot" style="background:#00E5FF;"></span>
+      Powered by Claude AI
+    </span>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section id="how-it-works" style="background: var(--surface); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);">
+  <div class="section-label">How it works</div>
+  <div class="section-title">Three steps.<br>Zero blank screens.</div>
+
+  <div class="steps">
+    <div class="step">
+      <div class="step-num">01</div>
+      <span class="step-icon">✉</span>
+      <h3>Open any email</h3>
+      <p>DraftMate detects the email automatically in Gmail or Outlook Web. No clicking, no copying.</p>
+    </div>
+    <div class="step">
+      <div class="step-num">02</div>
+      <span class="step-icon">✦</span>
+      <h3>Get a draft instantly</h3>
+      <p>Claude AI reads the context and generates a natural, relevant reply in seconds. It appears in the side panel.</p>
+    </div>
+    <div class="step">
+      <div class="step-num">03</div>
+      <span class="step-icon">→</span>
+      <h3>Review and send</h3>
+      <p>Like it? Hit send. Want to tweak it? Edit right in the panel. You're always in control.</p>
+    </div>
+  </div>
+</section>
+
+<!-- FEATURES -->
+<section>
+  <div class="section-label">Features</div>
+  <div class="section-title">Everything you need.<br>Nothing you don't.</div>
+
+  <div class="features-grid">
+    <div class="feature">
+      <div class="feature-icon">⚡</div>
+      <h3>Instant drafts</h3>
+      <p>Reply drafts appear in under 3 seconds. No waiting, no loading screens.</p>
+    </div>
+    <div class="feature">
+      <div class="feature-icon">✉</div>
+      <h3>Gmail + Outlook</h3>
+      <p>Works natively in both Gmail and all Outlook Web variants including Microsoft 365.</p>
+    </div>
+    <div class="feature">
+      <div class="feature-icon">✦</div>
+      <h3>Claude AI powered</h3>
+      <p>Drafts are generated by Claude (Anthropic) — one of the most capable AI models available.</p>
+    </div>
+    <div class="feature">
+      <div class="feature-icon">◎</div>
+      <h3>Non-intrusive UI</h3>
+      <p>A collapsible side panel that never gets in your way. Your inbox stays yours.</p>
+    </div>
+    <div class="feature">
+      <div class="feature-icon">↻</div>
+      <h3>Regenerate anytime</h3>
+      <p>Don't love the draft? Hit regen and get a fresh one instantly.</p>
+    </div>
+    <div class="feature">
+      <div class="feature-icon">🔒</div>
+      <h3>Private by design</h3>
+      <p>Email content is never stored. It's processed in real-time to generate your draft and discarded immediately.</p>
+    </div>
+  </div>
+</section>
+
+<!-- STORY -->
+<section style="background: var(--surface); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);">
+  <div class="story">
+    <div class="section-label">The story</div>
+    <blockquote class="story-quote">
+      "I'm just waiting for AI to reply my emails — I literally say the same thing every time."
+    </blockquote>
+    <p class="story-body">
+      My professor Dr. Jess said that in class one day, half joking. I wasn't joking at all.
+    </p>
+    <p class="story-body">
+      I went home and started building DraftMate — a Chrome extension that drafts email replies
+      for you the moment you open a message. No blank screens. No copy-pasting between tabs.
+      Just open, review, and send.
+    </p>
+    <p class="story-body">
+      After months of building, debugging DOM structures across two email clients, and a couple
+      of Chrome Web Store rejections — it's live. Free. For anyone who spends too much time in their inbox.
+    </p>
+    <p class="story-sig">— Odunayo Gabriel, University of Cincinnati</p>
+
+    <div class="powered">
+      <span>✦</span>
+      <span>Built with <strong>Claude AI</strong> by Anthropic &nbsp;·&nbsp; Available free on the <strong>Chrome Web Store</strong></span>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta-section">
+  <div class="cta-glow"></div>
+  <h2>Your inbox deserves<br>a <em style="font-family: var(--serif); font-style: italic; color: var(--cyan);">better first draft.</em></h2>
+  <p>Free. No account needed. Works in your browser right now.</p>
+  <a href="https://chromewebstore.google.com/detail/mailmind/cbkfcobhkfjijijhmopeebkljlbiigff"
+     class="btn-primary" target="_blank" rel="noopener" style="font-size:18px; padding: 16px 36px;">
+    ↓ &nbsp; Add DraftMate to Chrome — Free
+  </a>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="nav-logo" style="display:flex; align-items:center; gap:10px;">
+    <div class="nav-logo-icon" style="width:28px;height:28px;font-size:14px;">✦</div>
+    <span style="font-size:14px; color: var(--gray);">DraftMate</span>
+  </div>
+  <div class="footer-links">
+    <a href="https://ogadepoju.github.io/Mailmind/privacy-policy" target="_blank">Privacy Policy</a>
+    <a href="./terms.html">Terms &amp; Conditions</a>
+    <a href="mailto:adepojog@mail.uc.edu">Contact</a>
+  </div>
+  <p>© 2026 Odunayo Gabriel · University of Cincinnati</p>
+</footer>
+
+</body>
+</html>
