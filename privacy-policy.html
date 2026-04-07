@@ -166,7 +166,7 @@
 <main class="main">
   <div class="page-label">Legal</div>
   <h1>Privacy Policy</h1>
-  <p class="last-updated">Last updated: March 2026</p>
+  <p class="last-updated">Last updated: April 2026</p>
 
   <p>
     DraftMate is a Chrome extension that generates AI-powered email reply drafts inside Gmail
@@ -205,7 +205,7 @@
     DraftMate is developed and maintained by <strong>Odunayo Gabriel Adepoju</strong>, a student
     at the University of Cincinnati. This is an independent project and not affiliated with
     Google, Microsoft, or Anthropic. For any questions, contact:
-    <a href="mailto:ogadepoju@gmail.com">ogadepoju@gmail.com</a>
+    <a href="/cdn-cgi/l/email-protection#157a72747170657a7f60557278747c793b767a78"><span class="__cf_email__" data-cfemail="2a454d4b4e4f5a45405f6a4d474b434604494547">[email&#160;protected]</span></a>
   </p>
 
   <h2>2. What Data We Access</h2>
@@ -238,11 +238,7 @@
         <td>To generate a contextually relevant reply</td>
         <td>No</td>
       </tr>
-      <tr>
-        <td><strong>Gmail OAuth token</strong></td>
-        <td>To send the reply via Gmail API on your behalf</td>
-        <td>No — managed by Chrome only</td>
-      </tr>
+
     </tbody>
   </table>
 
@@ -276,28 +272,19 @@
       <strong>Render</strong> — hosts the DraftMate backend server. No email data is
       persisted on Render infrastructure.
     </li>
-    <li>
-      <strong>Google Gmail API</strong> — used to send emails on your behalf when you
-      click Send in Gmail. Governed by
-      <a href="https://policies.google.com/privacy" target="_blank" rel="noopener">Google's Privacy Policy</a>.
-    </li>
   </ul>
 
-  <h2>5. Google OAuth and Gmail Permissions</h2>
+  <h2>5. How DraftMate Interacts With Gmail and Outlook</h2>
   <p>
-    DraftMate requests the following Gmail OAuth scopes:
+    DraftMate does <strong>not</strong> use the Gmail API or any Google OAuth scopes.
+    It reads email content directly from the Gmail and Outlook Web pages using standard
+    browser DOM access — the same way any webpage reads its own content. No Google or
+    Microsoft account credentials are requested, stored, or transmitted by DraftMate.
   </p>
-  <ul>
-    <li><strong>gmail.readonly</strong> — to read the content of emails you open</li>
-    <li><strong>gmail.send</strong> — to send your reply when you click Send</li>
-    <li><strong>gmail.modify</strong> — to thread your reply correctly within the conversation</li>
-  </ul>
   <p>
-    Your Google credentials are never seen or stored by DraftMate. Authentication is handled
-    entirely by Google's identity platform via Chrome's built-in identity API.
-    DraftMate's use of Google user data complies with the
-    <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener">Google API Services User Data Policy</a>,
-    including the Limited Use requirements.
+    When you click "Open in Gmail", DraftMate uses DOM injection to click Gmail's native
+    Reply button and paste the draft into Gmail's own compose window. You then send the
+    email using Gmail's own Send button. DraftMate never sends an email on your behalf.
   </p>
 
   <h2>6. Data Retention</h2>
@@ -311,7 +298,7 @@
   <p>
     DraftMate is not directed at children under the age of 13. We do not knowingly collect
     personal information from children. If you believe a child has used DraftMate, please
-    contact us at <a href="mailto:ogadepoju@gmail.com">ogadepoju@gmail.com</a>.
+    contact us at <a href="/cdn-cgi/l/email-protection#9bf4fcfafffeebf4f1eedbfcf6faf2f7b5f8f4f6"><span class="__cf_email__" data-cfemail="7e11191f1a1b0e11140b3e19131f1712501d1113">[email&#160;protected]</span></a>.
   </p>
 
   <h2>8. Security</h2>
@@ -333,23 +320,11 @@
     If you have any questions, concerns, or requests regarding this Privacy Policy, please contact:
     <br><br>
     <strong>Odunayo Gabriel Adepoju</strong><br>
-    <a href="mailto:ogadepoju@gmail.com">ogadepoju@gmail.com</a>
+    <a href="/cdn-cgi/l/email-protection#b5dad2d4d1d0c5dadfc0f5d2d8d4dcd99bd6dad8"><span class="__cf_email__" data-cfemail="533c34323736233c392613343e323a3f7d303c3e">[email&#160;protected]</span></a>
   </p>
 
 </main>
 
 <footer>
   <div style="display:flex; align-items:center; gap:10px;">
-    <div style="width:28px;height:28px;border:1.5px solid var(--cyan);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px;color:var(--cyan);background:var(--cyan-dim);">✦</div>
-    <span style="font-size:14px; color: var(--gray);">DraftMate</span>
-  </div>
-  <div class="footer-links">
-    <a href="./privacy-policy.html">Privacy Policy</a>
-    <a href="./terms.html">Terms &amp; Conditions</a>
-    <a href="mailto:ogadepoju@gmail.com">Contact</a>
-  </div>
-  <p>© 2026 Odunayo Gabriel · University of Cincinnati</p>
-</footer>
-
-</body>
-</html>
+    <div style="width:28px;height:28px;border:1.5px solid var(--cyan);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px;color:var(--cyan);ba
